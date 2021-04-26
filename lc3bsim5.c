@@ -1,13 +1,13 @@
 /*
-        Name: Zane Freeman
-        UTEID: ZCF222
+    Name 1: Zane Freeman
+    UTEID 1: ZCF222
 */
 
 /***************************************************************/
 /*                                                             */
 /*   LC-3b Simulator                                           */
 /*                                                             */
-/*   EE 460N                                                   */
+/*   EE 460N - Lab 5                                           */
 /*   The University of Texas at Austin                         */
 /*                                                             */
 /***************************************************************/
@@ -19,6 +19,7 @@
 /***************************************************************/
 /*                                                             */
 /* Files:  ucode        Microprogram file                      */
+/*         pagetable    page table in LC-3b machine language   */
 /*         isaprogram   LC-3b machine language program file    */
 /*                                                             */
 /***************************************************************/
@@ -56,6 +57,7 @@ void latch_datapath_values();
 enum CS_BITS
 {
    IRD,
+   ARS,
    COND2,
    COND1,
    COND0,
@@ -113,6 +115,20 @@ enum CS_BITS
    GATE_USP,
    GATE_Vector,
    ALIGN,
+   LD_TRANS,
+   LD_SavePSR,
+   LD_PFN,
+   PFNMUX,
+   MDRMUX1,
+   MDRMUX0,
+   TRAPMUX,
+   RSMUX3,
+   RSMUX2,
+   RSMUX1,
+   RSMUX0,
+   GATE_SavePSR,
+   GATE_PTADR,
+   GATE_VA,
    CONTROL_STORE_BITS
 } CS_BITS;
 
@@ -120,6 +136,7 @@ enum CS_BITS
 /* Functions to get at the control bits.                       */
 /***************************************************************/
 int GetIRD(int *x) { return (x[IRD]); }
+int GetARS(int *x) { return (x[ARS]); }
 int GetCOND(int *x) { return ((x[COND2] << 2) + (x[COND1] << 1) + x[COND0]); }
 int GetJ(int *x) { return ((x[J5] << 5) + (x[J4] << 4) +
                            (x[J3] << 3) + (x[J2] << 2) +
@@ -166,8 +183,16 @@ int GetGATE_SPMUX(int *x) { return (x[GATE_SPMUX]); }
 int GetGATE_SSP(int *x) { return (x[GATE_SSP]); }
 int GetGATE_USP(int *x) { return (x[GATE_USP]); }
 int GetGATE_Vector(int *x) { return (x[GATE_Vector]); }
-
-/* MODIFY: you can add more Get functions for your new control signals */
+int GetLD_TRANS(int *x) { return (x[LD_TRANS]); }
+int GetLD_SavePSR(int *x) { return (x[LD_SavePSR]); }
+int GetLD_PFN(int *x) { return (x[LD_PFN]); }
+int GetPFNMUX(int *x) { return (x[PFNMUX]); }
+int GetMDRMUX(int *x) { return ((x[MDRMUX1] << 1) + x[MDRMUX0]); }
+int GetTRAPMUX(int *x) { return (x[TRAPMUX]); }
+int GetRSMUX(int *x) { return ((x[RSMUX3] << 3) + (x[RSMUX2] << 2) + (x[RSMUX1] << 1) + x[RSMUX0]); }
+int GetGATE_SavePSR(int *x) { return (x[GATE_SavePSR]); }
+int GetGATE_PTADR(int *x) { return (x[GATE_PTADR]); }
+int GetGATE_VA(int *x) { return (x[GATE_VA]); }
 
 /***************************************************************/
 /* The control store rom.                                      */
@@ -183,7 +208,7 @@ int CONTROL_STORE[CONTROL_STORE_ROWS][CONTROL_STORE_BITS];
    the least significant byte of a word. WE1 is used for the most significant
    byte of a word. */
 
-#define WORDS_IN_MEM 0x08000
+#define WORDS_IN_MEM 0x2000 /* 32 frames */
 #define MEM_CYCLES 5
 int MEMORY[WORDS_IN_MEM][2];
 
@@ -212,12 +237,12 @@ typedef struct System_Latches_Struct
        BEN; /* ben register */
 
    int READY; /* ready bit */
-              /* The ready bit is also latched as you don’t want the memory system to assert it
+              /* The ready bit is also latched as you dont want the memory system to assert it
      at a bad point in the cycle*/
 
    int REGS[LC_3b_REGS]; /* register file. */
 
-   int MICROINSTRUCTION[CONTROL_STORE_BITS]; /* The microinstruction */
+   int MICROINSTRUCTION[CONTROL_STORE_BITS]; /* The microintruction */
 
    int STATE_NUMBER; /* Current State Number - Provided for debugging */
 
@@ -225,7 +250,7 @@ typedef struct System_Latches_Struct
    int INTV; /* Interrupt vector register */
    int EXCV; /* Exception vector register */
    int SSP;  /* Initial value of system stack pointer */
-   /* MODIFY: You may add system latches that are required by your implementation */
+   /* MODIFY: you should add here any other registers you need to implement interrupts and exceptions */
    int PSR;
    int TEMP;
    int VECTOR;
@@ -233,11 +258,26 @@ typedef struct System_Latches_Struct
    int EX;
    int INT;
 
+   /* For lab 5 */
+   int PTBR; /* This is initialized when we load the page table */
+   int VA;   /* Temporary VA register */
+   /* MODIFY: you should add here any other registers you need to implement virtual memory */
+   int SavePSR;
+   int TRAP;
+   int RS;
+   int PFN;
+
 } System_Latches;
 
 /* Data Structure for Latch */
 
 System_Latches CURRENT_LATCHES, NEXT_LATCHES;
+
+/* For lab 5 */
+#define PAGE_NUM_BITS 9
+#define PTE_PFN_MASK 0x3E00
+#define PTE_VALID_MASK 0x0004
+#define PAGE_OFFSET_MASK 0x1FF
 
 /***************************************************************/
 /* A cycle counter.                                            */
@@ -557,10 +597,10 @@ void init_memory()
 /* Purpose   : Load program and service routines into mem.    */
 /*                                                            */
 /**************************************************************/
-void load_program(char *program_filename)
+void load_program(char *program_filename, int is_virtual_base)
 {
    FILE *prog;
-   int ii, word, program_base;
+   int ii, word, program_base, pte, virtual_pc;
 
    /* Open program file. */
    prog = fopen(program_filename, "r");
@@ -579,6 +619,38 @@ void load_program(char *program_filename)
       exit(-1);
    }
 
+   if (is_virtual_base)
+   {
+      if (CURRENT_LATCHES.PTBR == 0)
+      {
+         printf("Error: Page table base not loaded %s\n", program_filename);
+         exit(-1);
+      }
+
+      /* convert virtual_base to physical_base */
+      virtual_pc = program_base << 1;
+      pte = (MEMORY[(CURRENT_LATCHES.PTBR + (((program_base << 1) >> PAGE_NUM_BITS) << 1)) >> 1][1] << 8) |
+            MEMORY[(CURRENT_LATCHES.PTBR + (((program_base << 1) >> PAGE_NUM_BITS) << 1)) >> 1][0];
+
+      printf("virtual base of program: %04x\npte: %04x\n", program_base << 1, pte);
+      if ((pte & PTE_VALID_MASK) == PTE_VALID_MASK)
+      {
+         program_base = (pte & PTE_PFN_MASK) | ((program_base << 1) & PAGE_OFFSET_MASK);
+         printf("physical base of program: %x\n\n", program_base);
+         program_base = program_base >> 1;
+      }
+      else
+      {
+         printf("attempting to load a program into an invalid (non-resident) page\n\n");
+         exit(-1);
+      }
+   }
+   else
+   {
+      /* is page table */
+      CURRENT_LATCHES.PTBR = program_base << 1;
+   }
+
    ii = 0;
    while (fscanf(prog, "%x\n", &word) != EOF)
    {
@@ -593,11 +665,12 @@ void load_program(char *program_filename)
       /* Write the word to memory array. */
       MEMORY[program_base + ii][0] = word & 0x00FF;
       MEMORY[program_base + ii][1] = (word >> 8) & 0x00FF;
+      ;
       ii++;
    }
 
-   if (CURRENT_LATCHES.PC == 0)
-      CURRENT_LATCHES.PC = (program_base << 1);
+   if (CURRENT_LATCHES.PC == 0 && is_virtual_base)
+      CURRENT_LATCHES.PC = virtual_pc;
 
    printf("Read %d words from program into memory.\n\n", ii);
 }
@@ -607,18 +680,19 @@ void load_program(char *program_filename)
 /* Procedure : initialize                                      */
 /*                                                             */
 /* Purpose   : Load microprogram and machine language program  */
-/*             and set up initial state of the machine.        */
+/*             and set up initial state of the machine         */
 /*                                                             */
 /***************************************************************/
-void initialize(char *ucode_filename, char *program_filename, int num_prog_files)
+void initialize(char *ucode_filename, char *pagetable_filename, char *program_filename, int num_prog_files)
 {
    int i;
    init_control_store(ucode_filename);
 
    init_memory();
+   load_program(pagetable_filename, 0);
    for (i = 0; i < num_prog_files; i++)
    {
-      load_program(program_filename);
+      load_program(program_filename, 1);
       while (*program_filename++ != '\0')
          ;
    }
@@ -626,8 +700,8 @@ void initialize(char *ucode_filename, char *program_filename, int num_prog_files
    CURRENT_LATCHES.STATE_NUMBER = INITIAL_STATE_NUMBER;
    memcpy(CURRENT_LATCHES.MICROINSTRUCTION, CONTROL_STORE[INITIAL_STATE_NUMBER], sizeof(int) * CONTROL_STORE_BITS);
    CURRENT_LATCHES.SSP = 0x3000; /* Initial value of system stack pointer */
-   CURRENT_LATCHES.INT = 0;
-   CURRENT_LATCHES.PSR = 0x8002;
+
+   /* MODIFY: you can add more initialization code HERE */
 
    NEXT_LATCHES = CURRENT_LATCHES;
 
@@ -644,16 +718,16 @@ int main(int argc, char *argv[])
    FILE *dumpsim_file;
 
    /* Error Checking */
-   if (argc < 3)
+   if (argc < 4)
    {
-      printf("Error: usage: %s <micro_code_file> <program_file_1> <program_file_2> ...\n",
+      printf("Error: usage: %s <micro_code_file> <page table file> <program_file_1> <program_file_2> ...\n",
              argv[0]);
       exit(1);
    }
 
    printf("LC-3b Simulator\n\n");
 
-   initialize(argv[1], argv[2], argc - 2);
+   initialize(argv[1], argv[2], argv[3], argc - 3);
 
    if ((dumpsim_file = fopen("dumpsim", "w")) == NULL)
    {
@@ -668,9 +742,6 @@ int main(int argc, char *argv[])
 /***************************************************************/
 /* Do not modify the above code, except for the places indicated
    with a "MODIFY:" comment.
-
-   Do not modify the rdump and mdump functions.
-
    You are allowed to use the following global variables in your
    code. These are defined above.
 
@@ -685,7 +756,7 @@ int main(int argc, char *argv[])
    You may use the functions to get at the control bits defined
    above.
 
-   Begin your code here 	  			       */
+   Begin your code here                          */
 /***************************************************************/
 
 int signExtend(int num, int signbit)
@@ -711,30 +782,27 @@ void eval_micro_sequencer()
       NEXT_LATCHES.BEN = ((inst & 0x0800) && CURRENT_LATCHES.N) || ((inst & 0x0400) && CURRENT_LATCHES.Z) || ((inst & 0x0200) && CURRENT_LATCHES.P);
       NEXT_LATCHES.STATE_NUMBER = (inst >> 12) & 0x0F;
    }
+   else if (GetARS(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.STATE_NUMBER = CURRENT_LATCHES.RS;
+   }
    else
    {
       int j = GetJ(CURRENT_LATCHES.MICROINSTRUCTION);
       int cond = GetCOND(CURRENT_LATCHES.MICROINSTRUCTION);
       NEXT_LATCHES.STATE_NUMBER = j;
-      if (cond == 7)
+      if (cond == 6)
       {
-         if (CURRENT_LATCHES.EX & 1)
+         if (CURRENT_LATCHES.EX & 4)
          {
-            NEXT_LATCHES.STATE_NUMBER |= 0x20;
-         }
-      }
-      else if (cond == 6)
-      {
-         if (CURRENT_LATCHES.EX & 1)
-         {
-            NEXT_LATCHES.STATE_NUMBER |= 0x10;
+            NEXT_LATCHES.STATE_NUMBER |= 0x01;
          }
       }
       else if (cond == 5)
       {
-         if (CURRENT_LATCHES.PSR & 0x0080)
+         if (CURRENT_LATCHES.EX & 1)
          {
-            NEXT_LATCHES.STATE_NUMBER |= 0x10;
+            NEXT_LATCHES.STATE_NUMBER |= 0x04;
          }
       }
       else if (cond == 4)
@@ -822,18 +890,21 @@ void cycle_memory()
 /*
 * Datapath routine emulating operations before driving the bus.
 * Evaluate the input of tristate drivers
-*      Gate_MARMUX,
-*		 Gate_PC,
-*		 Gate_ALU,
-*		 Gate_SHF,
-*		 Gate_MDR,
-*      Gate_TEMP,
-*      Gate_PSR,
-*		 Gate_PCM2,
-*		 Gate_SPMUX,
-*		 Gate_SSP,
-*		 Gate_USP,
-*      Gate_Vector.
+*     Gate_MARMUX,
+*     Gate_PC,
+*     Gate_ALU,
+*     Gate_SHF,
+*     Gate_MDR,
+*     Gate_TEMP,
+*     Gate_PSR,
+*     Gate_PCM2,
+*     Gate_SPMUX,
+*     Gate_SSP,
+*     Gate_USP,
+*     Gate_Vector,
+*     Gate_SavePSR,
+*     Gate_PTADR,
+*     Gate_VA
 */
 int gate;
 void eval_bus_drivers()
@@ -898,6 +969,21 @@ void eval_bus_drivers()
    {
       gate = 0x0800;
       printf("driving GATE_Vector\n");
+   }
+   if (GetGATE_SavePSR(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      gate = 0x1000;
+      printf("driving GATE_SavePSR\n");
+   }
+   if (GetGATE_PTADR(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      gate = 0x2000;
+      printf("driving GATE_PTADR\n");
+   }
+   if (GetGATE_VA(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      gate = 0x4000;
+      printf("driving GATE_VA\n");
    }
 }
 
@@ -1056,8 +1142,14 @@ void drive_bus()
    }
    else if (gate == 0x0010)
    {
-      if (GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION))
+      if (GetMDRMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
          BUS = Low16bits(CURRENT_LATCHES.MDR);
+      }
+      else if (GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
+         BUS = Low16bits(CURRENT_LATCHES.MDR);
+      }
       else
       {
          BUS = Low16bits(signExtend(CURRENT_LATCHES.MDR & 0x00FF, 7));
@@ -1103,6 +1195,18 @@ void drive_bus()
    {
       BUS = CURRENT_LATCHES.VECTOR;
    }
+   else if (gate == 0x1000)
+   {
+      BUS = CURRENT_LATCHES.SavePSR;
+   }
+   else if (gate == 0x2000)
+   {
+      BUS = (CURRENT_LATCHES.PTBR + ((CURRENT_LATCHES.VA & 0xFE00) >> 8));
+   }
+   else if (gate == 0x4000)
+   {
+      BUS = CURRENT_LATCHES.VA;
+   }
 }
 
 void setConditionCodes(int result)
@@ -1143,7 +1247,14 @@ void latch_datapath_values()
 {
    if (GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      NEXT_LATCHES.MAR = Low16bits(BUS);
+      if (GetPFNMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
+         NEXT_LATCHES.MAR = ((CURRENT_LATCHES.PFN << 9) + (BUS & 0x01FF));
+      }
+      else
+      {
+         NEXT_LATCHES.MAR = Low16bits(BUS);
+      }
    }
    if (GetLD_MDR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
@@ -1169,10 +1280,22 @@ void latch_datapath_values()
       }
       else
       {
-         if (GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION))
+         if (GetMDRMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
+         {
+            NEXT_LATCHES.MDR = (Low16bits(BUS) | 0x01);
+         }
+         else if (GetMDRMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 3)
+         {
+            NEXT_LATCHES.MDR = (Low16bits(BUS) | 0x03);
+         }
+         else if (GetDATA_SIZE(CURRENT_LATCHES.MICROINSTRUCTION))
+         {
             NEXT_LATCHES.MDR = Low16bits(BUS);
+         }
          else
+         {
             NEXT_LATCHES.MDR = BUS & 0x00FF;
+         }
       }
    }
    if (GetLD_IR(CURRENT_LATCHES.MICROINSTRUCTION))
@@ -1267,33 +1390,50 @@ void latch_datapath_values()
       printf("PSR: %x\n", CURRENT_LATCHES.PSR);
       printf("MAR: %x\n", Low16bits(BUS));
       printf("ALIGN: %x\n", GetALIGN(CURRENT_LATCHES.MICROINSTRUCTION));
-      if ((CURRENT_LATCHES.PSR & 0x8000) && (Low16bits(BUS) < 0x3000))
+      if ((CURRENT_LATCHES.PSR & 0x8000) && (!(NEXT_LATCHES.MDR & 0x08)) && (!CURRENT_LATCHES.TRAP))
       {
          ex = 3;
       }
-      else if ((Low16bits(BUS) & 0x01) && GetALIGN(CURRENT_LATCHES.MICROINSTRUCTION))
+      else if (!(NEXT_LATCHES.MDR & 0x04))
       {
          ex = 1;
+      }
+      else
+      {
+         ex = 0;
       }
       NEXT_LATCHES.EX = ex;
       printf("EX: %x\n", ex);
    }
    else
+   {
       NEXT_LATCHES.EX = 0;
+   }
    if (GetLD_EXCV(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      int mux1 = GetEXCMUX(CURRENT_LATCHES.MICROINSTRUCTION);
-      int mux2;
-      if (mux1 == 1)
-         mux2 = 0;
+      if (GetEXCMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
+         if (CURRENT_LATCHES.EX & 0x07)
+         {
+            NEXT_LATCHES.EXCV = 0x03;
+         }
+         else if (CURRENT_LATCHES.EX & 0x02)
+         {
+            NEXT_LATCHES.EXCV = 0x04;
+         }
+         else if (CURRENT_LATCHES.EX)
+         {
+            NEXT_LATCHES.EXCV = 0x02;
+         }
+         else
+         {
+            NEXT_LATCHES.EXCV = 0x05;
+         }
+      }
       else
-         mux2 = CURRENT_LATCHES.EX;
-      if (mux2 == 0)
-         NEXT_LATCHES.EXCV = 0x04;
-      else if (mux2 == 1)
-         NEXT_LATCHES.EXCV = 0x03;
-      else if (mux2 == 3)
-         NEXT_LATCHES.EXCV = 0x02;
+      {
+         NEXT_LATCHES.EXCV = 0x05;
+      }
    }
    if (GetLD_Vector(CURRENT_LATCHES.MICROINSTRUCTION))
    {
@@ -1307,5 +1447,65 @@ void latch_datapath_values()
          NEXT_LATCHES.VECTOR = (CURRENT_LATCHES.INTV << 1) | 0x0200;
          printf("loading interrupt vector\n");
       }
+   }
+   if (GetLD_TRANS(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.VA = Low16bits(BUS);
+      if (GetTRAPMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
+         NEXT_LATCHES.TRAP = 1;
+      }
+      else
+      {
+         NEXT_LATCHES.TRAP = 0;
+      }
+      if ((BUS & 1) && GetALIGN(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
+         NEXT_LATCHES.EX = 4;
+      }
+      switch (GetRSMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+      {
+      case 0:
+         NEXT_LATCHES.RS = 23;
+         break;
+      case 1:
+         NEXT_LATCHES.RS = 24;
+         break;
+      case 2:
+         NEXT_LATCHES.RS = 25;
+         break;
+      case 3:
+         NEXT_LATCHES.RS = 28;
+         break;
+      case 4:
+         NEXT_LATCHES.RS = 29;
+         break;
+      case 5:
+         NEXT_LATCHES.RS = 33;
+         break;
+      case 6:
+         NEXT_LATCHES.RS = 36;
+         break;
+      case 7:
+         NEXT_LATCHES.RS = 37;
+         break;
+      case 8:
+         NEXT_LATCHES.RS = 48;
+         break;
+      case 9:
+         NEXT_LATCHES.RS = 49;
+         break;
+      case 10:
+         NEXT_LATCHES.RS = 55;
+         break;
+      }
+   }
+   if (GetLD_SavePSR(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.SavePSR = Low16bits(BUS);
+   }
+   if (GetLD_PFN(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.PFN = (Low16bits(BUS) >> 9) & 0x1F;
    }
 }
