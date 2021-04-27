@@ -259,6 +259,7 @@ typedef struct System_Latches_Struct
    int USP;
    int EX;
    int INT;
+   int E;
 
    /* For lab 5 */
    int PTBR; /* This is initialized when we load the page table */
@@ -433,6 +434,9 @@ void rdump(FILE *dumpsim_file)
    printf("BUS          : 0x%0.4x\n", BUS);
    printf("MDR          : 0x%0.4x\n", CURRENT_LATCHES.MDR);
    printf("MAR          : 0x%0.4x\n", CURRENT_LATCHES.MAR);
+   printf("E            : 0x%0.4x\n", CURRENT_LATCHES.E);
+   printf("EX           : 0x%0.4x\n", CURRENT_LATCHES.EX);
+   printf("RD           : 0x%0.4x\n", CURRENT_LATCHES.RD);
    printf("CCs: N = %d  Z = %d  P = %d\n", CURRENT_LATCHES.N, CURRENT_LATCHES.Z, CURRENT_LATCHES.P);
    printf("Registers:\n");
    for (k = 0; k < LC_3b_REGS; k++)
@@ -1042,11 +1046,15 @@ void eval_micro_sequencer()
          }
          break;
       case 6:
-         NEXT_LATCHES.STATE_NUMBER = Low16bits(GetJ(CURRENT_LATCHES.MICROINSTRUCTION)) | Low16bits(CURRENT_LATCHES.EX << 4);
-         /*if (CURRENT_LATCHES.EX & 4)
+         if (CURRENT_LATCHES.EX & 1)
          {
-            NEXT_LATCHES.STATE_NUMBER |= 0x01;
-         }*/
+            NEXT_LATCHES.STATE_NUMBER |= 0x04;
+         }
+         if (CURRENT_LATCHES.EX & 4)
+         {
+            NEXT_LATCHES.STATE_NUMBER = Low16bits(GetJ(CURRENT_LATCHES.MICROINSTRUCTION)) | Low16bits(CURRENT_LATCHES.E << 4);
+            //NEXT_LATCHES.STATE_NUMBER |= 0x01;
+         }
          break;
       }
    }
@@ -1263,6 +1271,10 @@ void latch_datapath_values()
          NEXT_LATCHES.MAR = Low16bits(BUS);
       }
    }
+   if (GetRDMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.RD = 1;
+   }
    if (GetLD_MDR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       if (GetMIO_EN(CURRENT_LATCHES.MICROINSTRUCTION))
@@ -1284,10 +1296,6 @@ void latch_datapath_values()
       }
       else
       {
-         if (GetRDMUX(CURRENT_LATCHES.MICROINSTRUCTION))
-         {
-            NEXT_LATCHES.RD = 1;
-         }
          if (GetMDRMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
          {
             if (CURRENT_LATCHES.RD == 1)
@@ -1407,19 +1415,23 @@ void latch_datapath_values()
       if ((CURRENT_LATCHES.PSR & 0x8000) && (!(NEXT_LATCHES.MDR & 0x08)) && (!CURRENT_LATCHES.TRAP))
       {
          NEXT_LATCHES.EX = 0x0003;
+         NEXT_LATCHES.E = 0x01;
       }
       else if (!(NEXT_LATCHES.MDR & 0x04))
       {
          NEXT_LATCHES.EX = 0x0001;
+         NEXT_LATCHES.E = 0x01;
       }
       else
       {
          NEXT_LATCHES.EX = 0x0000;
+         NEXT_LATCHES.E = 0x00;
       }
    }
    else
    {
       NEXT_LATCHES.EX = 0;
+      NEXT_LATCHES.E = 0x00;
    }
    if (GetLD_EXCV(CURRENT_LATCHES.MICROINSTRUCTION))
    {
@@ -1427,23 +1439,28 @@ void latch_datapath_values()
       {
          if (CURRENT_LATCHES.EX & 0x07)
          {
+            NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x03;
          }
          else if (CURRENT_LATCHES.EX & 0x02)
          {
+            NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x04;
          }
          else if (CURRENT_LATCHES.EX)
          {
+            NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x02;
          }
          else
          {
+            NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x05;
          }
       }
       else
       {
+         NEXT_LATCHES.E = 0x01;
          NEXT_LATCHES.EXCV = 0x05;
       }
    }
@@ -1471,6 +1488,7 @@ void latch_datapath_values()
       }
       if ((BUS & 1) && GetALIGN(CURRENT_LATCHES.MICROINSTRUCTION))
       {
+         NEXT_LATCHES.E = 0x01;
          NEXT_LATCHES.EX = 4;
       }
       switch (GetRSMUX(CURRENT_LATCHES.MICROINSTRUCTION))
