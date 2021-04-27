@@ -1,7 +1,6 @@
       .ORIG x3000
       LEA R4, BEGIN
       LDW R5, R4, #0
-      LDW R5, R5, #0
       AND R4, R4, #0
       ADD R1, R1, #10
       ADD R1, R1, #9
@@ -16,6 +15,6 @@ LOOP  LDB R2, R5, #0
       JMP R4
       HALT
 
-BEGIN .FILL xC001
+BEGIN .FILL xC000
 STORE .FILL xC014
 .END

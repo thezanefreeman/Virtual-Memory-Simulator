@@ -102,27 +102,27 @@ enum CS_BITS
    SR1MUX1,
    INTEXCMUX,
    LD_VECTOR,
-   //NEW FOR LAB 5 comment out if broken
-   LD_TEMP,
-   LD_PRIV,
-   LD_EX,
+   //NEW FOR LAB 5
+   LD_HOLDER,
+   LD_PRIVELEDGE,
+   CHECK_EXCEPTION,
    LD_EXCV,
-   GATE_TEMP,
-   GATE_PCM2,
+   GATE_HOLDER,
+   GATE_PSHPOP,
    GATE_SPMUX,
    GATE_SSP,
    GATE_USP,
-   GATE_Vector,
-   ALIGN,
-   LD_TRANS,
-   LD_SavePSR,
-   LD_PFN,
-   PFNMUX,
-   MDRMUX,
-   GATE_SavePSR,
+   GATE_VECTOR,
+   CHECK_ALIGNMENT,
+   SWITCH,
+   LD_PSR_SAVED,
+   LD_FRAME,
+   FRAMEMUX,
+   DATAMUX,
+   GATE_PSR_SAVED,
    GATE_PTADR,
    GATE_VA,
-   RDMUX,
+   SAVEPATH,
    RESTORE,
    K3,
    K2,
@@ -166,33 +166,36 @@ int GetLD_USP(int *x) { return (x[LD_USP_SAVED]); }
 int GetLD_SSP(int *x) { return (x[LD_SSP_SAVED]); }
 int GetSPMUX(int *x) { return (x[SPMUX]); }
 int GetLD_PSR(int *x) { return (x[LD_PSR]); }
+int GetGATE_PSHPOP(int *x) { return (x[GATE_PSHPOP]); }
 int GetGATEPSR(int *x) { return (x[GATE_PSR]); }
 int GetDRMUX(int *x) { return ((x[DRMUX1] << 1) + x[DRMUX]); }
 int GetSR1MUX(int *x) { return ((x[SR1MUX1] << 1) + x[SR1MUX]); }
 int GetINTEXCMUX(int *x) { return (x[INTEXCMUX]); }
-int GetLD_Vector(int *x) { return (x[LD_VECTOR]); }
+int GetLD_VECTOR(int *x) { return (x[LD_VECTOR]); }
 
 //ADDED FOR LAB 5
-int GetRESTORE(int *x) { return (x[RESTORE]); }
-int GetLD_TEMP(int *x) { return (x[LD_TEMP]); }
-int GetLD_PRIV(int *x) { return (x[LD_PRIV]); }
-int GetLD_EX(int *x) { return (x[LD_EX]); }
-int GetLD_EXCV(int *x) { return (x[LD_EXCV]); }
-int GetALIGN(int *x) { return (x[ALIGN]); }
-int GetGATE_TEMP(int *x) { return (x[GATE_TEMP]); }
-int GetGATE_PCM2(int *x) { return (x[GATE_PCM2]); }
-int GetGATE_SPMUX(int *x) { return (x[GATE_SPMUX]); }
 int GetGATE_SSP(int *x) { return (x[GATE_SSP]); }
 int GetGATE_USP(int *x) { return (x[GATE_USP]); }
-int GetGATE_Vector(int *x) { return (x[GATE_Vector]); }
-int GetLD_TRANS(int *x) { return (x[LD_TRANS]); }
-int GetLD_SavePSR(int *x) { return (x[LD_SavePSR]); }
-int GetLD_PFN(int *x) { return (x[LD_PFN]); }
-int GetPFNMUX(int *x) { return (x[PFNMUX]); }
-int GetMDRMUX(int *x) { return (x[MDRMUX]); }
+int GetGATE_VECTOR(int *x) { return (x[GATE_VECTOR]); }
+int GetLD_PRIVELEDGE(int *x) { return (x[LD_PRIVELEDGE]); }
+//Added to help check exceptions
+int GetLD_HOLDER(int *x) { return (x[LD_HOLDER]); }
+int GetCHECK_EXCEPTION(int *x) { return (x[CHECK_EXCEPTION]); }
+int GetLD_EXCV(int *x) { return (x[LD_EXCV]); }
+int GetCHECK_ALIGNMENT(int *x) { return (x[CHECK_ALIGNMENT]); }
+int GetGATE_HOLDER(int *x) { return (x[GATE_HOLDER]); }
+//added to restore the state
+int GetGATE_SPMUX(int *x) { return (x[GATE_SPMUX]); }
+int GetSWITCH(int *x) { return (x[SWITCH]); }
+int GetLD_PSRSAVED(int *x) { return (x[LD_PSR_SAVED]); }
+int GetGATE_PSRSAVED(int *x) { return (x[GATE_PSR_SAVED]); }
+int GetRESTORE(int *x) { return (x[RESTORE]); }
 int GetK(int *x) { return ((x[K3] << 3) + (x[K2] << 2) + (x[K1] << 1) + x[K0]); }
-int GetRDMUX(int *x) { return (x[RDMUX]); }
-int GetGATE_SavePSR(int *x) { return (x[GATE_SavePSR]); }
+int GetPATH(int *x) { return (x[SAVEPATH]); }
+//added to help with virtual memory
+int GetLD_FRAME(int *x) { return (x[LD_FRAME]); }
+int GetFRAMEMUX(int *x) { return (x[FRAMEMUX]); }
+int GetDATAMUX(int *x) { return (x[DATAMUX]); }
 int GetGATE_PTADR(int *x) { return (x[GATE_PTADR]); }
 int GetGATE_VA(int *x) { return (x[GATE_VA]); }
 
@@ -264,11 +267,11 @@ typedef struct System_Latches_Struct
    int PTBR; /* This is initialized when we load the page table */
    int VA;   /* Temporary VA register */
    /* MODIFY: you should add here any other registers you need to implement virtual memory */
-   int TEMP;
-   int EX;
-   int SavePSR;
+   int HOLDER;
+   int EXCEPTION;
+   int PSR_SAVED;
    int RETURN_STATE;
-   int RD;
+   int SWTCHV;
    int PFN;
 
 } System_Latches;
@@ -433,9 +436,6 @@ void rdump(FILE *dumpsim_file)
    printf("BUS          : 0x%0.4x\n", BUS);
    printf("MDR          : 0x%0.4x\n", CURRENT_LATCHES.MDR);
    printf("MAR          : 0x%0.4x\n", CURRENT_LATCHES.MAR);
-   printf("E            : 0x%0.4x\n", CURRENT_LATCHES.E);
-   printf("EX           : 0x%0.4x\n", CURRENT_LATCHES.EX);
-   printf("RD           : 0x%0.4x\n", CURRENT_LATCHES.RD);
    printf("CCs: N = %d  Z = %d  P = %d\n", CURRENT_LATCHES.N, CURRENT_LATCHES.Z, CURRENT_LATCHES.P);
    printf("Registers:\n");
    for (k = 0; k < LC_3b_REGS; k++)
@@ -767,19 +767,21 @@ int main(int argc, char *argv[])
 /***************************************************************/
 int memory_access_cycle_counter = 0;
 int memory_data = 0;
+int adder1_result = 0;
+int adder2_result = 0;
 int mar_mux_bus_driver = 0;
 int pc_bus_driver = 0;
 int alu_bus_driver = 0;
 int shift_bus_driver = 0;
 int mdr_bus_driver = 0;
-int temp_bus_driver = 0;
+int holder_bus_driver = 0;
 int psr_bus_driver = 0;
-int pcm2_bus_driver = 0;
+int psh_pop_bus_driver = 0;
 int spmux_bus_driver = 0;
 int ssp_bus_driver = 0;
 int usp_bus_driver = 0;
 int vector_bus_driver = 0;
-int savepsr_bus_driver = 0;
+int psr_saved_bus_driver = 0;
 int ptadr_bus_driver = 0;
 int va_bus_driver = 0;
 
@@ -810,8 +812,6 @@ int get_bits(int value, int highest_bit, int lowest_bit)
 
 int adder_muxes()
 {
-   int adder1_result = 0;
-   int adder2_result = 0;
    if (GetADDR1MUX(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
@@ -897,7 +897,7 @@ void eval_micro_sequencer()
          break;
       case 5:
          //compare the exception bit
-         if ((CURRENT_LATCHES.EX & 0x01) || (CURRENT_LATCHES.EX & 0x04))
+         if ((CURRENT_LATCHES.EXCEPTION & 0x01) || (CURRENT_LATCHES.EXCEPTION & 0x04))
          {
             NEXT_LATCHES.STATE_NUMBER = Low16bits(GetJ(CURRENT_LATCHES.MICROINSTRUCTION)) | Low16bits(CURRENT_LATCHES.E << 4);
          }
@@ -983,83 +983,84 @@ int pc_gate_value()
 
 int alu_gate_value()
 {
-   int sr1, sr2;
+   int R1;
+   int R2;
    if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
    {
-      sr1 = (CURRENT_LATCHES.IR >> 6) & 0x07;
+      R1 = (CURRENT_LATCHES.IR >> 6) & 0x07;
    }
    else if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
    {
-      sr1 = 6;
+      R1 = 6;
    }
    else
    {
-      sr1 = (CURRENT_LATCHES.IR >> 9) & 0x07;
+      R1 = (CURRENT_LATCHES.IR >> 9) & 0x07;
    }
    if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 3)
    {
-      return Low16bits(CURRENT_LATCHES.REGS[sr1]);
+      return Low16bits(CURRENT_LATCHES.REGS[R1]);
    }
    else if (CURRENT_LATCHES.IR & 0x0020)
    {
-      sr2 = Extend16bits(CURRENT_LATCHES.IR & 0x001F, 4);
+      R2 = Extend16bits(CURRENT_LATCHES.IR & 0x001F, 4);
       if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 0)
       {
 
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] + sr2);
+         return Low16bits(CURRENT_LATCHES.REGS[R1] + R2);
       }
       else if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
       {
 
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] & sr2);
+         return Low16bits(CURRENT_LATCHES.REGS[R1] & R2);
       }
       else if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
       {
 
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] ^ sr2);
+         return Low16bits(CURRENT_LATCHES.REGS[R1] ^ R2);
       }
    }
    else
    {
-      sr2 = (CURRENT_LATCHES.IR & 0x07);
+      R2 = (CURRENT_LATCHES.IR & 0x07);
       if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 0)
       {
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] + CURRENT_LATCHES.REGS[sr2]);
+         return Low16bits(CURRENT_LATCHES.REGS[R1] + CURRENT_LATCHES.REGS[R2]);
       }
       else if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
       {
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] & CURRENT_LATCHES.REGS[sr2]);
+         return Low16bits(CURRENT_LATCHES.REGS[R1] & CURRENT_LATCHES.REGS[R2]);
       }
       else if (GetALUK(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
       {
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] ^ CURRENT_LATCHES.REGS[sr2]);
+         return Low16bits(CURRENT_LATCHES.REGS[R1] ^ CURRENT_LATCHES.REGS[R2]);
       }
    }
 }
 
 int shift_gate_value()
 {
-   int sr1;
+   int R1;
    if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
-      sr1 = (CURRENT_LATCHES.IR >> 6) & 0x07;
+      R1 = (CURRENT_LATCHES.IR >> 6) & 0x07;
    else
-      sr1 = (CURRENT_LATCHES.IR >> 9) & 0x07;
+      R1 = (CURRENT_LATCHES.IR >> 9) & 0x07;
    if (CURRENT_LATCHES.IR & 0x0010)
    {
       if (CURRENT_LATCHES.IR & 0x0020)
       {
-         return Low16bits(Extend16bits(CURRENT_LATCHES.REGS[sr1], 15) >> (CURRENT_LATCHES.IR & 0x0F));
+         return Low16bits(Extend16bits(CURRENT_LATCHES.REGS[R1], 15) >> (CURRENT_LATCHES.IR & 0x0F));
       }
       else
-         return Low16bits(CURRENT_LATCHES.REGS[sr1] >> (CURRENT_LATCHES.IR & 0x0F));
+         return Low16bits(CURRENT_LATCHES.REGS[R1] >> (CURRENT_LATCHES.IR & 0x0F));
    }
    else
-      return Low16bits(CURRENT_LATCHES.REGS[sr1] << (CURRENT_LATCHES.IR & 0x0F));
+      return Low16bits(CURRENT_LATCHES.REGS[R1] << (CURRENT_LATCHES.IR & 0x0F));
 }
 
 int mdr_gate_value()
 {
-   if (GetMDRMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+   if (GetDATAMUX(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       return Low16bits(CURRENT_LATCHES.MDR);
    }
@@ -1073,9 +1074,9 @@ int mdr_gate_value()
    }
 }
 
-int temp_gate_value()
+int holder_gate_value()
 {
-   return CURRENT_LATCHES.TEMP;
+   return CURRENT_LATCHES.HOLDER;
 }
 
 int psr_gate_value()
@@ -1083,7 +1084,7 @@ int psr_gate_value()
    return CURRENT_LATCHES.PSR;
 }
 
-int pcm2_gate_value()
+int psh_pop_gate_value()
 {
    return (CURRENT_LATCHES.PC - 2);
 }
@@ -1101,7 +1102,10 @@ int spmux_gate_value()
       }
    }
 }
-
+int vector_gate_value()
+{
+   return CURRENT_LATCHES.VECTOR;
+}
 int ssp_gate_value()
 {
    return CURRENT_LATCHES.SSP;
@@ -1110,13 +1114,9 @@ int usp_gate_value()
 {
    return CURRENT_LATCHES.USP;
 }
-int vector_gate_value()
+int psr_saved_gate_value()
 {
-   return CURRENT_LATCHES.VECTOR;
-}
-int savepsr_gate_value()
-{
-   return CURRENT_LATCHES.SavePSR;
+   return CURRENT_LATCHES.PSR_SAVED;
 }
 int ptadr_gate_value()
 {
@@ -1154,14 +1154,14 @@ void eval_bus_drivers()
    alu_bus_driver = alu_gate_value();
    shift_bus_driver = shift_gate_value();
    mdr_bus_driver = mdr_gate_value();
-   temp_bus_driver = temp_gate_value();
+   holder_bus_driver = holder_gate_value();
    psr_bus_driver = psr_gate_value();
-   pcm2_bus_driver = pcm2_gate_value();
+   psh_pop_bus_driver = psh_pop_gate_value();
    spmux_bus_driver = spmux_gate_value();
+   vector_bus_driver = vector_gate_value();
    ssp_bus_driver = ssp_gate_value();
    usp_bus_driver = usp_gate_value();
-   vector_bus_driver = vector_gate_value();
-   savepsr_bus_driver = savepsr_gate_value();
+   psr_saved_bus_driver = psr_saved_gate_value();
    ptadr_bus_driver = ptadr_gate_value();
    va_bus_driver = va_gate_value();
 }
@@ -1192,17 +1192,17 @@ void drive_bus()
    {
       BUS = Low16bits(mdr_bus_driver);
    }
-   else if (GetGATE_TEMP(CURRENT_LATCHES.MICROINSTRUCTION))
+   else if (GetGATE_HOLDER(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      BUS = Low16bits(temp_bus_driver);
+      BUS = Low16bits(holder_bus_driver);
    }
    else if (GetGATEPSR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       BUS = Low16bits(psr_bus_driver);
    }
-   else if (GetGATE_PCM2(CURRENT_LATCHES.MICROINSTRUCTION))
+   else if (GetGATE_PSHPOP(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      BUS = Low16bits(pcm2_bus_driver);
+      BUS = Low16bits(psh_pop_bus_driver);
    }
    else if (GetGATE_SPMUX(CURRENT_LATCHES.MICROINSTRUCTION))
    {
@@ -1216,13 +1216,13 @@ void drive_bus()
    {
       BUS = Low16bits(usp_bus_driver);
    }
-   else if (GetGATE_Vector(CURRENT_LATCHES.MICROINSTRUCTION))
+   else if (GetGATE_VECTOR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       BUS = Low16bits(vector_bus_driver);
    }
-   else if (GetGATE_SavePSR(CURRENT_LATCHES.MICROINSTRUCTION))
+   else if (GetGATE_PSRSAVED(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      BUS = Low16bits(savepsr_bus_driver);
+      BUS = Low16bits(psr_saved_bus_driver);
    }
    else if (GetGATE_PTADR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
@@ -1238,34 +1238,6 @@ void drive_bus()
    }
 }
 
-void setConditionCodes(int result)
-{
-   if (result < 0)
-   {
-      NEXT_LATCHES.N = 1;
-      NEXT_LATCHES.Z = 0;
-      NEXT_LATCHES.P = 0;
-      NEXT_LATCHES.PSR &= 0x8000;
-      NEXT_LATCHES.PSR |= 0x0004;
-   }
-   else if (result > 0)
-   {
-      NEXT_LATCHES.N = 0;
-      NEXT_LATCHES.Z = 0;
-      NEXT_LATCHES.P = 1;
-      NEXT_LATCHES.PSR &= 0x8000;
-      NEXT_LATCHES.PSR |= 0x0001;
-   }
-   else
-   {
-      NEXT_LATCHES.N = 0;
-      NEXT_LATCHES.Z = 1;
-      NEXT_LATCHES.P = 0;
-      NEXT_LATCHES.PSR &= 0x8000;
-      NEXT_LATCHES.PSR |= 0x0002;
-   }
-}
-
 /*
 * Datapath routine for computing all functions that need to latch
 * values in the data path at the end of this cycle.  Some values
@@ -1276,7 +1248,7 @@ void latch_datapath_values()
 {
    if (GetLD_MAR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      if (GetPFNMUX(CURRENT_LATCHES.MICROINSTRUCTION))
+      if (GetFRAMEMUX(CURRENT_LATCHES.MICROINSTRUCTION))
       {
          NEXT_LATCHES.MAR = ((CURRENT_LATCHES.PFN << 9) + (BUS & 0x01FF));
       }
@@ -1307,12 +1279,12 @@ void latch_datapath_values()
       }
       else
       {
-         if (GetMDRMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
+         if (GetDATAMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
          {
-            if (CURRENT_LATCHES.RD == 1)
+            if (CURRENT_LATCHES.SWTCHV == 1)
             {
                NEXT_LATCHES.MDR = (Low16bits(BUS) | 0x03);
-               NEXT_LATCHES.RD = 0;
+               NEXT_LATCHES.SWTCHV = 0;
             }
             else
             {
@@ -1347,7 +1319,31 @@ void latch_datapath_values()
 
    if (GetLD_CC(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      setConditionCodes(Extend16bits(Low16bits(BUS), 15));
+      int bus_value = Extend16bits(Low16bits(BUS), 15);
+      if (bus_value < 0)
+      {
+         NEXT_LATCHES.N = 1;
+         NEXT_LATCHES.Z = 0;
+         NEXT_LATCHES.P = 0;
+         NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x8000;
+         NEXT_LATCHES.PSR = NEXT_LATCHES.PSR | 0x04;
+      }
+      else if (bus_value > 0)
+      {
+         NEXT_LATCHES.N = 0;
+         NEXT_LATCHES.Z = 0;
+         NEXT_LATCHES.P = 1;
+         NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x8000;
+         NEXT_LATCHES.PSR = NEXT_LATCHES.PSR | 0x01;
+      }
+      else
+      {
+         NEXT_LATCHES.N = 0;
+         NEXT_LATCHES.Z = 1;
+         NEXT_LATCHES.P = 0;
+         NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x8000;
+         NEXT_LATCHES.PSR = NEXT_LATCHES.PSR | 0x02;
+      }
    }
 
    if (GetLD_BEN(CURRENT_LATCHES.MICROINSTRUCTION))
@@ -1357,60 +1353,20 @@ void latch_datapath_values()
 
    if (GetLD_PC(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      if (GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 0)
+      switch (GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION))
       {
+      case 0:
          NEXT_LATCHES.PC = CURRENT_LATCHES.PC + 2;
-      }
-      else if (GetPCMUX(CURRENT_LATCHES.MICROINSTRUCTION) == 1)
-      {
+         break;
+      case 1:
          NEXT_LATCHES.PC = Low16bits(BUS);
-      }
-      else
-      {
+         break;
+      case 2:
          NEXT_LATCHES.PC = adder_muxes();
+         break;
       }
    }
-
-   if (GetRDMUX(CURRENT_LATCHES.MICROINSTRUCTION))
-   {
-      NEXT_LATCHES.RD = 1;
-   }
-
-   if (GetLD_TEMP(CURRENT_LATCHES.MICROINSTRUCTION))
-   {
-      NEXT_LATCHES.TEMP = Low16bits(BUS);
-   }
-
-   if (GetLD_PSR(CURRENT_LATCHES.MICROINSTRUCTION))
-   {
-      NEXT_LATCHES.PSR = Low16bits(BUS);
-      NEXT_LATCHES.N = BUS & 0x04;
-      NEXT_LATCHES.Z = BUS & 0x02;
-      NEXT_LATCHES.P = BUS & 0x01;
-   }
-
-   if (GetLD_PRIV(CURRENT_LATCHES.MICROINSTRUCTION))
-   {
-      NEXT_LATCHES.PSR &= 0x007F;
-   }
-
-   if (GetLD_SSP(CURRENT_LATCHES.MICROINSTRUCTION))
-   {
-      if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
-      {
-         NEXT_LATCHES.SSP = Low16bits(CURRENT_LATCHES.REGS[6]);
-      }
-   }
-
-   if (GetLD_USP(CURRENT_LATCHES.MICROINSTRUCTION))
-   {
-      if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
-      {
-         NEXT_LATCHES.USP = Low16bits(CURRENT_LATCHES.REGS[6]);
-      }
-   }
-
-   if (GetLD_Vector(CURRENT_LATCHES.MICROINSTRUCTION))
+   if (GetLD_VECTOR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       if (GetINTEXCMUX(CURRENT_LATCHES.MICROINSTRUCTION))
       {
@@ -1421,45 +1377,83 @@ void latch_datapath_values()
          NEXT_LATCHES.VECTOR = (CURRENT_LATCHES.INTV << 1) | 0x0200;
       }
    }
+   if (GetLD_PRIVELEDGE(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.PSR = NEXT_LATCHES.PSR & 0x7F;
+   }
 
-   if (GetLD_EX(CURRENT_LATCHES.MICROINSTRUCTION))
+   if (GetSWITCH(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.SWTCHV = 1;
+   }
+
+   if (GetLD_HOLDER(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.HOLDER = Low16bits(BUS);
+   }
+
+   if (GetLD_PSR(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      NEXT_LATCHES.PSR = Low16bits(BUS);
+      NEXT_LATCHES.N = BUS & 0x04;
+      NEXT_LATCHES.Z = BUS & 0x02;
+      NEXT_LATCHES.P = BUS & 0x01;
+   }
+
+   if (GetLD_USP(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
+      {
+         NEXT_LATCHES.USP = Low16bits(CURRENT_LATCHES.REGS[6]);
+      }
+   }
+
+   if (GetLD_SSP(CURRENT_LATCHES.MICROINSTRUCTION))
+   {
+      if (GetSR1MUX(CURRENT_LATCHES.MICROINSTRUCTION) == 2)
+      {
+         NEXT_LATCHES.SSP = Low16bits(CURRENT_LATCHES.REGS[6]);
+      }
+   }
+
+   if (GetCHECK_EXCEPTION(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       if ((CURRENT_LATCHES.PSR & 0x8000) && (!(NEXT_LATCHES.MDR & 0x08)) && (!CURRENT_LATCHES.TRAP_FLAG))
       {
-         NEXT_LATCHES.EX = 0x0003;
+         NEXT_LATCHES.EXCEPTION = 0x03;
          NEXT_LATCHES.E = 0x01;
       }
       else if (!(NEXT_LATCHES.MDR & 0x04))
       {
-         NEXT_LATCHES.EX = 0x0001;
+         NEXT_LATCHES.EXCEPTION = 0x01;
          NEXT_LATCHES.E = 0x01;
       }
       else
       {
-         NEXT_LATCHES.EX = 0x0000;
+         NEXT_LATCHES.EXCEPTION = 0x00;
          NEXT_LATCHES.E = 0x00;
       }
    }
    else
    {
-      NEXT_LATCHES.EX = 0;
+      NEXT_LATCHES.EXCEPTION = 0;
       NEXT_LATCHES.E = 0x00;
    }
    if (GetLD_EXCV(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       if (GetIRD(CURRENT_LATCHES.MICROINSTRUCTION))
       {
-         if (CURRENT_LATCHES.EX & 0x07)
+         if (0x07 & CURRENT_LATCHES.EXCEPTION)
          {
             NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x03;
          }
-         else if (CURRENT_LATCHES.EX & 0x02)
+         else if (0x02 & CURRENT_LATCHES.EXCEPTION)
          {
             NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x04;
          }
-         else if (CURRENT_LATCHES.EX)
+         else if (CURRENT_LATCHES.EXCEPTION)
          {
             NEXT_LATCHES.E = 0x01;
             NEXT_LATCHES.EXCV = 0x02;
@@ -1477,13 +1471,16 @@ void latch_datapath_values()
       }
    }
 
-   if (GetLD_TRANS(CURRENT_LATCHES.MICROINSTRUCTION))
+   if (GetSWITCH(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       NEXT_LATCHES.VA = Low16bits(BUS);
-      if ((BUS & 1) && GetALIGN(CURRENT_LATCHES.MICROINSTRUCTION))
+      if (GetCHECK_ALIGNMENT(CURRENT_LATCHES.MICROINSTRUCTION))
       {
-         NEXT_LATCHES.E = 0x01;
-         NEXT_LATCHES.EX = 4;
+         if ((BUS & 0x01))
+         {
+            NEXT_LATCHES.E = 0x01;
+            NEXT_LATCHES.EXCEPTION = 4;
+         }
       }
       switch (GetK(CURRENT_LATCHES.MICROINSTRUCTION))
       {
@@ -1525,10 +1522,10 @@ void latch_datapath_values()
 
    if (GetLD_PSR(CURRENT_LATCHES.MICROINSTRUCTION))
    {
-      NEXT_LATCHES.SavePSR = Low16bits(BUS);
+      NEXT_LATCHES.PSR_SAVED = Low16bits(BUS);
    }
 
-   if (GetLD_PFN(CURRENT_LATCHES.MICROINSTRUCTION))
+   if (GetLD_FRAME(CURRENT_LATCHES.MICROINSTRUCTION))
    {
       NEXT_LATCHES.PFN = (Low16bits(BUS) >> 9) & 0x1F;
    }
