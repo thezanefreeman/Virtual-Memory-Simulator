@@ -57,8 +57,6 @@ void latch_datapath_values();
 enum CS_BITS
 {
    IRD,
-   ARS,
-   COND2,
    COND1,
    COND0,
    J5,
@@ -81,10 +79,8 @@ enum CS_BITS
    GATE_SHF,
    PCMUX1,
    PCMUX0,
-   DRMUX1,
-   DRMUX0,
-   SR1MUX1,
-   SR1MUX0,
+   DRMUX,
+   SR1MUX,
    ADDR1MUX,
    ADDR2MUX1,
    ADDR2MUX0,
@@ -96,6 +92,10 @@ enum CS_BITS
    DATA_SIZE,
    LSHF1,
    /* MODIFY: you have to add all your new control signals */
+   ARS,
+   COND2,
+   DRMUX1,
+   SR1MUX1,
    SPMUX,
    EXCMUX,
    IEMUX,
@@ -155,8 +155,8 @@ int GetGATE_ALU(int *x) { return (x[GATE_ALU]); }
 int GetGATE_MARMUX(int *x) { return (x[GATE_MARMUX]); }
 int GetGATE_SHF(int *x) { return (x[GATE_SHF]); }
 int GetPCMUX(int *x) { return ((x[PCMUX1] << 1) + x[PCMUX0]); }
-int GetDRMUX(int *x) { return ((x[DRMUX1] << 1) + x[DRMUX0]); }
-int GetSR1MUX(int *x) { return ((x[SR1MUX1] << 1) + x[SR1MUX0]); }
+int GetDRMUX(int *x) { return ((x[DRMUX1] << 1) + x[DRMUX]); }
+int GetSR1MUX(int *x) { return ((x[SR1MUX1] << 1) + x[SR1MUX]); }
 int GetADDR1MUX(int *x) { return (x[ADDR1MUX]); }
 int GetADDR2MUX(int *x) { return ((x[ADDR2MUX1] << 1) + x[ADDR2MUX0]); }
 int GetMARMUX(int *x) { return (x[MARMUX]); }
